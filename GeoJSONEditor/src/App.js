@@ -1,5 +1,7 @@
 import './App.css';
+import 'leaflet/dist/leaflet.css';
 import Upload from './components/upload';
+
 
 function App() {
   return (
