@@ -6,7 +6,7 @@ const Upload = () => {
 
     const [selectedFiles, setSelectedFiles] = useState();
     const [isFilePicked, setIsFilePicked] = useState(false);
-    useEffect( () => {
+    useEffect(() => {
         console.log('useEffect ', isFilePicked);
     }, [isFilePicked]);
 
@@ -24,6 +24,20 @@ const Upload = () => {
         setIsFilePicked(true);
     }
 
+    const editCountryName = (event) => {
+        console.log('CLICKED')
+        //make pop up to change name in json and then send to rerender
+    }
+
+    const onEachCountry = (feature, layer) => {
+        console.log(feature.properties.admin)
+        const countryName = feature.properties.admin
+        layer.bindPopup(countryName)
+        layer.on({
+            click: editCountryName
+        })
+    }
+
     return (
         <div>
             <div>
@@ -34,10 +48,8 @@ const Upload = () => {
                 <button onClick={handleSubmission}>Submit</button>
             </div>
             <div id='viewport'>
-                <MapContainer center={[0, 0]}zoom={2} scrollWheelZoom={true}>
-                    {isFilePicked ? < GeoJSON data={selectedFiles.features}></GeoJSON> : <></>}
-
-
+                <MapContainer center={[0, 0]} zoom={2} scrollWheelZoom={true}>
+                    {isFilePicked ? < GeoJSON data={selectedFiles.features} onEachFeature={onEachCountry}></GeoJSON> : <></>}
                 </MapContainer>
 
             </div>
