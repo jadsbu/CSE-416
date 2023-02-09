@@ -6,10 +6,6 @@ const Upload = () => {
 
     const [selectedFiles, setSelectedFiles] = useState();
     const [isFilePicked, setIsFilePicked] = useState(false);
-    useEffect(() => {
-        console.log('useEffect ', isFilePicked);
-    }, [isFilePicked]);
-
 
     const chooseFileHandler = (event) => {
         const fileReader = new FileReader();
