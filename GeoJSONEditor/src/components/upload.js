@@ -1,9 +1,7 @@
 import React, { ChangeEvent, useState, useEffect } from 'react';
 import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet'
-import Popup from 'reactjs-popup';
 import 'reactjs-popup/dist/index.css';
 import 'leaflet/dist/leaflet.css';
-import { Renderer } from 'leaflet';
 
 // npm install reactjs-popup --save
 
@@ -31,7 +29,7 @@ const Upload = () => {
     //newfile = JSON.parse(JSON.stringify(newfile).replaceAll(countryName, newName))
 
     const editCountryName = (event) => {
-        event.preventDefault()
+        
         //make pop up to change name in json and then send to rerender
         var newfile = JSON.parse(JSON.stringify(selectedFiles))
         
@@ -41,10 +39,11 @@ const Upload = () => {
             }
         }
         setSelectedFiles(newfile)
-        setIsFilePicked(false);
         setCountryName(newName)
         console.log(newfile)
         handleSubmission();
+        setPopup(true);
+
     
 
     }
@@ -55,16 +54,33 @@ const Upload = () => {
         setNewName(event.target.value)
     }
 
+    const changeCountryName = (e) => {
+        setCountryName(e);
+    }
+
     const onEachCountry = (feature, layer) => {
         console.log(feature.properties.admin)
         const countryName = feature.properties.admin
         layer.bindPopup(countryName)
         layer.on({
             click: () => {
-                setCountryName(countryName)
+                changeCountryName(countryName)
             }
         })
     }
+
+    const handlePopup = () => {
+        setPopup(false);
+    }
+
+    if(popup){
+        return(
+            <>
+                <p> Country name has been changed to: {countryName}!</p>
+                <button onClick={handlePopup}> Go home </button>
+            </>
+        );
+    } else {
     return (
         <div>
             <div>
@@ -89,5 +105,6 @@ const Upload = () => {
         </div >
     );
 };
+}
 
 export default Upload
