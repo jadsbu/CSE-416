@@ -1,11 +1,19 @@
 import React, { ChangeEvent, useState, useEffect } from 'react';
 import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet'
+import Popup from 'reactjs-popup';
+import 'reactjs-popup/dist/index.css';
 import 'leaflet/dist/leaflet.css';
+import { Renderer } from 'leaflet';
+
+// npm install reactjs-popup --save
 
 const Upload = () => {
 
     const [selectedFiles, setSelectedFiles] = useState();
     const [isFilePicked, setIsFilePicked] = useState(false);
+    const [countryName, setCountryName] = useState();
+    const [popup, setPopup] = useState(false);
+    const [newName, setNewName] = useState("");
 
     const chooseFileHandler = (event) => {
         const fileReader = new FileReader();
@@ -20,9 +28,31 @@ const Upload = () => {
         setIsFilePicked(true);
     }
 
+    //newfile = JSON.parse(JSON.stringify(newfile).replaceAll(countryName, newName))
+
     const editCountryName = (event) => {
-        console.log('CLICKED')
+        event.preventDefault()
         //make pop up to change name in json and then send to rerender
+        var newfile = JSON.parse(JSON.stringify(selectedFiles))
+        
+        for(var i = 0; i < newfile.features.length; i++){
+            if(newfile.features[i].properties.admin == countryName){
+                newfile.features[i].properties.admin = newName
+            }
+        }
+        setSelectedFiles(newfile)
+        setIsFilePicked(false);
+        setCountryName(newName)
+        console.log(newfile)
+        handleSubmission();
+    
+
+    }
+        // layer.on({
+        //     click: setPopup(true)
+        // })
+    const changeNewName = (event) => {
+        setNewName(event.target.value)
     }
 
     const onEachCountry = (feature, layer) => {
@@ -30,10 +60,11 @@ const Upload = () => {
         const countryName = feature.properties.admin
         layer.bindPopup(countryName)
         layer.on({
-            click: editCountryName
+            click: () => {
+                setCountryName(countryName)
+            }
         })
     }
-
     return (
         <div>
             <div>
@@ -43,6 +74,11 @@ const Upload = () => {
             <div>
                 <button onClick={handleSubmission}>Submit</button>
             </div>
+            <p> Country is: {countryName} </p>
+                <form>
+                    <span>Change Country Name: </span><input type='text' name='countryName' onChange = {changeNewName}></input>
+                    <button onClick = {editCountryName}>Submit</button>
+                </form>
             <div id='viewport'>
                 <MapContainer center={[0, 0]} zoom={2} scrollWheelZoom={true}>
                     {isFilePicked ? < GeoJSON data={selectedFiles.features} onEachFeature={onEachCountry}></GeoJSON> : <></>}
@@ -53,4 +89,5 @@ const Upload = () => {
         </div >
     );
 };
+
 export default Upload
