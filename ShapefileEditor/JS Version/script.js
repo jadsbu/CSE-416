@@ -1,5 +1,7 @@
 var canv = document.getElementById("map"), ctx = canv.getContext("2d"),
-fileIn = document.getElementById("fileIn");
+fileIn = document.getElementById("fileIn"),
+Zoom = document.getElementById("zoom"),
+Level = document.getElementById("lvl");
 
 const CW = canv.width, CH = canv.height;
 var fi, bytes, camZ = 1, camX = 100, camY = 100;
@@ -38,6 +40,11 @@ class Point{
         Point.Gen.y = camZ*(this.y+camY);
         return Point.Gen;
     }
+    makeGlobal(){
+        this.x = this.x/camZ - camX;
+        this.y = this.y/camZ - camY;
+        return this;
+    }
     toString(){
         return "(" + this.x + ", " + this.y + ")";
     }
@@ -47,7 +54,7 @@ canv.addEventListener("wheel", function(e){
     let scr = e.deltaY < 0 ? 1 : -1, czo = camZ;
     if(scr == 1) camZ *= 1.1;
     else camZ /= 1.1;
-    //console.log(camZ);
+    Zoom.innerHTML = camZ;
     CWS = CW-camZ;
     CHS = CH-camZ;
     //camX += canv.width*(czo-camZ)/camZ;
@@ -55,17 +62,45 @@ canv.addEventListener("wheel", function(e){
     Poly.Draw();
 });
 
-var mx = 0, my = 0;
+var mx = 0, my = 0, smx, smy;
+var selDot = null;
 
 canv.addEventListener("mousemove", function(e){
+    smx = e.clientX, smy = e.clientY;
     if(e.buttons == 1){
-        camX += (e.clientX - mx) * (1/camZ);
-        camY += (e.clientY - my) * (1/camZ);
+        camX += (e.clientX - mx)/camZ;
+        camY += (e.clientY - my)/camZ;
+        selDot = null;
         Poly.Draw();
+    }else if(e.buttons == 0 && sels.length == 1){
+        var d, md = 1/camZ, mp = null, ref = new Point(e.clientX, e.clientX);
+        ref.makeGlobal();
+        for(var e of sels[0].elems) for(var p of e.points) if((d = ref.fastDist(p)) < md) md = d, mp = p;
+        Poly.Draw();
+        if(mp != null) drawDot(mp);
+        selDot = mp;
     }
-    mx = e.clientX;
-    my = e.clientY;
+    mx = smx; my = smy;
 });
+
+window.addEventListener("keydown", function(e){
+    //console.log(e.key);
+    switch(e.key){
+        case 'f': Poly.Draw(true); break;
+        case 'm': mergeRegions(); break;
+        case 'x': if(selDot != null) remPoint(); break;
+        case 'ArrowUp': viewChange(true); break; //change focus level
+        case 'ArrowDown': viewChange(false); break; //change focus level
+    }
+});
+
+function viewChange(dir){
+    viewLevel += dir ? 1 : -1;
+    if(viewLevel < 0) viewLevel = 0;
+    else if(viewLevel > 4) viewLevel = 4;
+    Level.innerHTML = viewLevel;
+    Poly.Draw();
+}
 
 var px, py, mp = new Point(), sel, ser;
 const CLC = CW/10;
@@ -73,8 +108,10 @@ const CLC = CW/10;
 canv.addEventListener("mousedown", function(e){
     mp.set(e.x, e.y);
 });
+var sels = [];
 canv.addEventListener("mouseup", function(e){
     if(mp.x != e.x || mp.y != e.y) return;
+    if(Poly.l[viewLevel] == undefined) return;
     px = e.x/camZ-camX;
     py = e.y/camZ-camY;
     mp.set(px, py);
@@ -85,7 +122,11 @@ canv.addEventListener("mouseup", function(e){
     for(var g of Poly.l[viewLevel]) for(var p of g.elems){
         if((gen = p._mean.dist(mp)) < CLC*camZ && gen < ser && p.minX < px && px < p.maxX && p.minY < py && py < p.maxY) sel = g, ser = gen;
     }
-    if(sel != null) sel.h = !sel.h, Poly.Draw(); //this is the filtered closest to click event!
+    if(sel != null){
+        sel.h = !sel.h; Poly.Draw();
+        if(sel.h) sels.push(sel);
+        else sels.splice(sels.indexOf(sel), 1);
+    }
 })
 
 function read(n, e = false){
@@ -188,6 +229,7 @@ function recordRead(count){
         cp = read(4); //cp = current part
         sp = null;
         let ret = new Poly(cp, fileLevel, count);
+        Poly.l[fileLevel][count].elems.push(ret);
         while(true){
             pp = pointRead(); //pp = current point
             if(!pp.eq(sp)){
@@ -302,6 +344,7 @@ async function readDBaseFile(file){
 function readFile(f){
     var fl = f.name.split(".");
     viewLevel = fileLevel = parseInt(fl[0].split("_adm")[1]);
+    Level.innerHTML = viewLevel;
     switch(fl[fl.length-1]){
         case "shp": readShapeFile(f); break;
         case "dbf": readDBaseFile(f); break;
@@ -310,32 +353,27 @@ function readFile(f){
 fileIn.onchange = function(){
     for(var f of this.files) readFile(f);
 }
-function pType(x, y){ //these are fx and fy values
-    if(x >= 0 && x < camZ) return 0; //(0, n)
-    if(y >= 0 && y < camZ) return 1; //(n, 0)
-    if(x <= CW && x > CWS) return 2; //(M, n)
-    if(y <= CH && y > CHS) return 3; //(n, M)
-    return -1; //(n, n) ???
-}
-const corn = [
-    new Point(Math.NEGATIVE_INFINITY, 1),
-    new Point(1, Math.NEGATIVE_INFINITY),
-    new Point(Math.POSITIVE_INFINITY, 1),
-    new Point(1, Math.POSITIVE_INFINITY)];
-function index(a, b){
-    return b == 0 ? 3 : b-1;
+function drawDot(p){
+    ctx.fillStyle="#ff0000";
+    ctx.beginPath();
+    ctx.arc(camZ*(p.x+camX), camZ*(p.y+camY), camZ**.2, 0, 2*Math.PI);
+    ctx.fill();
 }
 var fx, fy, pLast = new Point(0, 0), dx, dy;
 var LOD_SKIP, LOD_STEP, LOD_REF, finSum, li, ni, ci;
-var defCol = "#000";
+var defCol = "#000", mark, Acc = false;
+var dots = [];
 class Poly{
     static l = [[], [], [], [], []]; //poly struct
     static d = [[], [], [], [], []]; //data struct
     static vis = [true, true, true, true, true]; //vis array
     static Draw(af = false){
         ctx.clearRect(0, 0, canv.width, canv.height);
+        for(var d of dots) drawDot(d);
         var p = 0, l, g;
-        if(af) autoFrame();
+        //if(af) autoFrame();
+        if(Poly.l[viewLevel] == undefined) return;
+        Acc = af;
         defCol = "#aba99f";
         for(p = 0; p < Poly.l.length; p++){
             if(viewLevel == p) continue;
@@ -372,7 +410,7 @@ class Poly{
         this.maxX = this.maxY = -100000000;
         //this.maxY = 0;
         //Poly.l[fl][gn].push(this);
-        Poly.l[fl][gn].elems.push(this);
+        //Poly.l[fl][gn].elems.push(this);
     }
     add(p){
         this.minX = Math.min(p.x, this.minX);
@@ -380,6 +418,19 @@ class Poly{
         this.maxX = Math.max(p.x, this.maxX);
         this.maxY = Math.max(p.y, this.maxY);
         this.points.push(p);
+    }
+    get(i){ //circular treatment!!!
+        while(i < 0) i += this.points.length;
+        while(i >= this.points.length) i -= this.points.length;
+        return this.points[i];
+    }
+    indexOf(p){
+        for(var i = 0; i < this.points.length; i++) if(this.points[i].eq(p)) return i;
+        return -1;
+    }
+    isNeighbor(p){
+        for(var i of p.points) if(this.indexOf(i) != -1) return true;
+        return false;
     }
     [Symbol.iterator](){
         this.i = 0;
@@ -405,50 +456,30 @@ class Poly{
         return (this._mean = m);
     }
     draw(high){ //use camZ for zoom
-        //if(this.maxX < camZ*camX) return;
-        //if(this.minX > camZ*(CW+camX)) return;
-        //if(this.maxY < camZ*camY) return;
-        //if(this.minY > camZ*(CH+camY)) return;
         if(camZ*(this.maxX+camX) < 0) return;
         if(camZ*(this.minX+camX) > CW) return;
         if(camZ*(this.maxY+camY) < 0) return;
         if(camZ*(this.minY+camY) > CH) return;
-        /*if(Poly.d[this.fl].length > 0 && Poly.d[this.fl][0][3].length > this.gn){ //has data
-            ctx.textAlign = "left";
-            ctx.fillText(Poly.d[this.fl][4][3][this.gn], camZ*(this._mean.x+camX), camZ*(this._mean.y+camY));
-        }*/
+        //drawDot(this.points[0]);
         ctx.beginPath();
-        //ctx.lineCap = "round";
         ctx.strokeStyle = high ? "#fbbd0c" : defCol;
+        //accTally = 1;
         LOD_STEP = 100;
-        LOD_SKIP = this.lodRatio * this.lodBound;
+        LOD_SKIP = this.lodRatio * this.lodBound / camZ / camZ;
         aFrame = true; bFrame = false;
         var f = this.points[0]; LOD_REF = f;
         fx = camZ*(f.x + camX);
         fy = camZ*(f.y + camY);
-        pLast.set(undefined, undefined); //pLast.set(fx, fy);
+        mark = 0;
+        //pLast.set(undefined, undefined); //pLast.set(fx, fy);
         ctx.moveTo(fx, fy);
         for(var i = 1; i < this.points.length; i++){ //need to optimize this
             //i % LOD_STEP == 0 && 
-            if(camZ * LOD_REF.fastDist(this.points[i]) < LOD_SKIP / camZ) continue;
+            if(!Acc && LOD_REF.fastDist(this.points[i]) < LOD_SKIP) continue;
             LOD_REF = this.points[i];
             fx = camZ*(LOD_REF.x+camX);
             fy = camZ*(LOD_REF.y+camY);
-            if(i % LOD_STEP != 0 && (fx < 0 || fx > CW || fy < 0 || fy > CH)) continue;
-            /*aFrame = fx > 0 && fx < CW && fy > 0 && fy < CH;
-            if(aFrame){
-                if(!bFrame){ //circumvent
-                    li = pType(pLast.x, pLast.y);
-                    ni = pType(fx, fy);
-                    if(Math.abs(li - ni) == 1){ //circumvent one corner
-
-                    }
-                }
-                pLast.set(fx, fy);
-            }
-            if(aFrame || bFrame) ctx.lineTo(fx, fy); //normal
-            bFrame = aFrame;*/
-
+            if((fx < 0 || fx > CW) && (fy < 0 || fy > CH)) continue;
             ctx.lineTo(fx, fy);
         }
         fx = camZ*(f.x + camX);
@@ -456,7 +487,89 @@ class Poly{
         if(fx > 0 && fx < CW && fy > 0 && fy < CH) ctx.lineTo(fx, fy);
         ctx.stroke();
         LOD_REF = null;
+        //console.log(accTally / this.points.length);
     }
+}
+
+function remPoint(){
+    for(var l of Poly.l) for(var g of l) for(var e of g.elems)
+        if(e.minX <= selDot.x && e.maxX >= selDot.x && e.minY <= selDot.y && e.maxY >= selDot.y)
+            for(var i = 0; i < e.points.length; i++) if(selDot.eq(e.points[i])){
+                e.points.splice(i, 1);
+                break;
+            }
+    selDot = null;
+    Poly.Draw();
+}
+
+function merge(A, B, level, group){
+    //START:::
+    var aBeg = 0, aLim = A.points.length, p; //starting info
+    while(true){
+        if(B.indexOf(A.get(aBeg)) == -1) break;
+        else aBeg--, aLim--;
+    }
+    //FIND POINTS A AND C:::
+    var ln = false, first = null, last = null;
+    for(var i = aBeg; i < aLim; i++){
+        p = A.get(i);
+        if(B.indexOf(p) == -1){if(ln) last = A.get(i-1); ln = false;}
+        else{if(first == null) first = p; ln = true;}
+    }
+    //dots.push(first);
+    //dots.push(last);
+    /*if(Math.abs(A.indexOf(first) - A.indexOf(last)) >= A.points.length/2){ //swap save~~~
+        p = last;
+        last = first;
+        first = p;
+    }*/
+    //ACTUALLY BUILD MERGED POLY:::
+    var ret = new Poly(parseInt(A.id) + parseInt(B.id) / 1000, level, group);
+    var wh = B, ind;
+    ret.add(first);
+    p = B.get(ind = B.indexOf(first)+1); //joint B1
+    while(!p.eq(first)){
+        if(p.eq(last)){
+            wh = A;
+            p = A.get(ind = A.indexOf(last)); //include last --> joint A2
+        }
+        ret.add(p);
+        p = wh.get(++ind);
+    }
+    ret.add(first);
+    ret.mean();
+    ret.finalize();
+    return ret;
+}
+
+function mergeRegions(){
+    if(sels.length != 2) return;
+    console.log(sels[0]);
+    console.log(sels[1]);
+    var rx = sels[1].level, ry = sels[1].group;
+    while(true){
+        var pass = true;
+        for(var i = 0; i < sels[0].elems.length; i++){
+            for(var n = 0; n < sels[1].elems.length; n++){
+                if(sels[0].elems[i].isNeighbor(sels[1].elems[n])){
+                    var m = merge(sels[0].elems[i], sels[1].elems[n], sels[0].level, sels[0].group);
+                    console.log(m);
+                    sels[0].elems.splice(i, 1);
+                    sels[1].elems.splice(n, 1);
+                    sels[0].elems.push(m);
+                    pass = false; break;
+                }
+            }
+            if(!pass) break;
+        }
+        if(pass) break;
+    }
+    for(var e of sels[1].elems) sels[0].elems.push(e); //make sure to save the islands
+    Poly.l[rx].splice(ry, 1);
+    if(Poly.d[rx][4] != undefined) Poly.d[rx][4].elems[sels[0].group] += "/" + Poly.d[rx][4].elems[ry]; //merge names
+    //for(var i of Poly.d[rx]) i.elems.splice(ry, 1);
+    sels.splice(1, 1);
+    Poly.Draw();
 }
 
 function autoFrame(){
