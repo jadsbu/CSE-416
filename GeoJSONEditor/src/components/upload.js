@@ -1,6 +1,5 @@
 import React, { ChangeEvent, useState, useEffect } from 'react';
 import { GeoJSON, MapContainer, TileLayer, useMap } from 'react-leaflet'
-import 'reactjs-popup/dist/index.css';
 import 'leaflet/dist/leaflet.css';
 
 // npm install reactjs-popup --save
